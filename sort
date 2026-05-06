@@ -1,0 +1,93 @@
+input_file = "POSCAR"
+output_file = "POSCAR_fixed"
+
+# ==========================================
+# Specify how many atoms to fix for each element
+# Example:
+# "Pd": 12  -> fix lowest 12 Pd atoms
+# "Cu": 36  -> fix lowest 36 Cu atoms
+# ==========================================
+
+fix_dict = {
+    "Pd": 12,
+    # "Cu": 36,
+    # "O": 9,
+}
+
+with open(input_file, "r") as f:
+    lines = f.readlines()
+
+# Find coordinate section
+for i, line in enumerate(lines):
+    if "Direct" in line or "Cartesian" in line:
+        coord_type = line.strip()
+        start_index = i + 1
+        break
+
+# Species and counts
+species = lines[start_index - 3].split()
+atom_counts = list(map(int, lines[start_index - 2].split()))
+
+# Read atomic coordinates
+atoms = []
+
+for line in lines[start_index:]:
+    if line.strip():
+        parts = line.split()
+
+        # Keep only x y z
+        if len(parts) >= 4:
+            atom = parts[1:4]
+        else:
+            atom = parts[:3]
+
+        atoms.append(atom)
+
+# Split atoms element-wise
+atoms_by_element = {}
+
+idx = 0
+for sp, count in zip(species, atom_counts):
+    atoms_by_element[sp] = atoms[idx:idx + count]
+    idx += count
+
+# Apply fixing
+for sp in atoms_by_element:
+
+    atom_list = atoms_by_element[sp]
+
+    # Sort by Z coordinate
+    sorted_atoms = sorted(atom_list, key=lambda x: float(x[2]))
+
+    # Number of atoms to fix
+    n_fix = fix_dict.get(sp, 0)
+
+    for i in range(len(sorted_atoms)):
+
+        if i < n_fix:
+            sorted_atoms[i] += ['F', 'F', 'F']
+        else:
+            sorted_atoms[i] += ['T', 'T', 'T']
+
+    atoms_by_element[sp] = sorted_atoms
+
+# Rebuild atom list
+all_atoms = []
+
+for sp in species:
+    all_atoms.extend(atoms_by_element[sp])
+
+# Insert Selective dynamics if absent
+if "Selective dynamics" not in lines[start_index - 4]:
+    lines.insert(start_index, "Selective dynamics\n")
+    start_index += 1
+
+# Write new POSCAR
+with open(output_file, "w") as f:
+
+    f.writelines(lines[:start_index])
+
+    for atom in all_atoms:
+        f.write("  " + "  ".join(atom) + "\n")
+
+print(f"✅ Fixed POSCAR written to '{output_file}'")
