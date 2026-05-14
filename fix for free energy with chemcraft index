@@ -1,0 +1,59 @@
+# selective_dynamics_from_indices.py
+
+input_file = "POSCAR"
+output_file = "POSCAR_selective"
+
+# ===== USER INPUT =====
+# Chemcraft atom indices which should be movable (T T T)
+move_atoms = list(map(int, input("Enter Chemcraft atom indices: ").split()))
+# ======================
+
+with open(input_file, "r") as f:
+    lines = f.readlines()
+
+# Find coordinate section
+for i, line in enumerate(lines):
+    if "Direct" in line or "Cartesian" in line:
+        coord_type = line.strip()
+        coord_line_index = i
+        start_index = i + 1
+        break
+
+# Replace coordinate line with Selective dynamics
+lines[coord_line_index] = "Selective dynamics\n"
+
+# Insert Cartesian/Direct below it
+lines.insert(coord_line_index + 1, coord_type + "\n")
+
+# Read coordinate lines
+coords = lines[start_index + 1:]
+
+new_coords = []
+
+for idx, line in enumerate(coords, start=1):
+
+    if not line.strip():
+        continue
+
+    parts = line.split()
+
+    # Keep only x y z
+    xyz = parts[:3]
+
+    # Apply flags
+    if idx in move_atoms:
+        flags = ['T', 'T', 'T']
+    else:
+        flags = ['F', 'F', 'F']
+
+    new_line = "  ".join(xyz + flags) + "\n"
+
+    new_coords.append(new_line)
+
+# Write new POSCAR
+with open(output_file, "w") as f:
+    f.writelines(lines[:start_index + 1])
+    f.writelines(new_coords)
+
+print(f"✅ Selective dynamics added to CONTCAR.")
+print(f"✅ Output written to: {output_file}")
